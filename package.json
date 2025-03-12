@@ -26,6 +26,9 @@
 		"vite": "^6.0.0"
 	},
 	"dependencies": {
+		"@huggingface/inference": "^3.5.1",
+		"@lmstudio/sdk": "^1.0.1",
+		"@lucide/svelte": "^0.479.0",
 		"@tailwindcss/vite": "^4.0.12",
 		"tailwindcss": "^4.0.12"
 	}
