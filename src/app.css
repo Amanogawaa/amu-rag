@@ -8,5 +8,13 @@
 	--color-primary-d: #1c1f20;
 	--color-secondary-d: #303334;
 	--color-tertiary-d: #2d2e2f;
-	--color-accent: #e9e9e7;
+	--color-tertiary-hover: #59595c;
+	--color-accent-d: #e9e9e7;
+}
+
+body {
+	::-webkit-scrollbar {
+		display: none;
+		width: none;
+	}
 }
