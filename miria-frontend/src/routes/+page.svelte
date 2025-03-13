@@ -1,42 +1,53 @@
-<script>
+<script lang="ts">
+	import type { Chat } from '$lib/types/types';
+	import dataFetch from '$lib/utils/service';
 	import { Paperclip, ArrowUp } from '@lucide/svelte';
+	import { onMount } from 'svelte';
 
 	let input = $state('');
-	let response = $state('');
+	let options = $state<Chat[]>([]);
+	let messages = $state<{ role: string; content: string }[]>([]);
 	let loading = $state(false);
+	let selectedModel = $state('');
 
-	/** @type {{ input: string, response: string }[]} */
-	let conversation = [];
-
-	async function sendMessage() {
-		if (!input.trim()) return;
-		const userInput = input;
-		loading = true;
-		input = ''; // Clear input immediately for better UX
+	onMount(async () => {
 		try {
-			const res = await fetch('http://localhost:11434/api/generate', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					model: 'llama3.2:1b',
-					prompt: userInput,
-					stream: true
-				})
-			});
+			const response = await dataFetch('models', 'GET');
+			options = response.models;
+			if (options.length > 0) selectedModel = options[0].name;
+		} catch (error) {
+			console.error('Error fetching models:', error);
+		}
+	});
 
-			if (!res.ok) throw new Error('Failed to fetch response from Ollama');
+	async function onSubmit() {
+		if (!input.trim()) return;
+		
+		const userMessage = { role: 'user', content: input };
+		messages = [...messages, userMessage];
+		loading = true;
 
-			const data = await res.json();
-			response = data.response;
-			conversation = [...conversation, { input: userInput, response }];
+		const payload = {
+			model: selectedModel ,
+			messages: [...messages],
+			stream: false 
+		};
+		console.table(payload);
+
+		try {
+			const res = await dataFetch('chat', 'POST', payload);
+			console.log('Response:', res);
+
+			if (res && res.message) {
+				messages = [...messages, { role: 'assistant', content: res.message }];
+			} else {
+				messages = [...messages, { role: 'assistant', content: 'No response content' }];
+			}
 		} catch (error) {
 			console.error('Error:', error);
-			response =
-				error.message === 'Failed to fetch response from Ollama'
-					? 'Server unavailable. Is Ollama running?'
-					: 'Sorry, something went wrong!';
-			conversation = [...conversation, { input: userInput, response }];
+			messages = [...messages, { role: 'assistant', content: 'Error: Could not get response' }];
 		} finally {
+			input = '';
 			loading = false;
 		}
 	}
@@ -46,26 +57,27 @@
 	class="w-full min-h-svh h-full mx-auto flex flex-col items-center px-10 pt-10 pb-2 justify-center bg-primary-d"
 >
 	<div class="max-w-3xl mx-auto w-full flex-grow flex flex-col justify-center gap-5">
-		{#if conversation.length === 0}
+		{#if messages.length === 0}
 			<div class="chat chat-start w-full">
 				<div class="w-full text-justify text-base">
 					{loading ? 'Thinking...' : 'Ask me anything!'}
 				</div>
 			</div>
 		{:else}
-			{#each conversation as con}
-				<div class="chat chat-end">
-					<div
-						class="p-5 rounded-tl-3xl text-base rounded-tr-3xl rounded-bl-3xl rounded-br-md bg-tertiary-d"
-					>
-						{con.input}
+			{#each messages as msg}
+				{#if msg.role === 'user'}
+					<div class="chat chat-end">
+						<div
+							class="p-5 rounded-tl-3xl text-base rounded-tr-3xl rounded-bl-3xl rounded-br-md bg-tertiary-d"
+						>
+							{msg.content}
+						</div>
 					</div>
-				</div>
-				<div class="chat chat-start w-full">
-					<div class="w-full text-justify text-base">
-						{con.response}
+				{:else if msg.role === 'assistant'}
+					<div class="chat chat-start w-full">
+						<div class="w-full text-justify text-base">{msg.content}</div>
 					</div>
-				</div>
+				{/if}
 			{/each}
 			{#if loading}
 				<div class="chat chat-start w-full">
@@ -75,25 +87,33 @@
 			<div class="w-full h-[2px] bg-secondary-d rounded-full my-3.5"></div>
 		{/if}
 	</div>
+
 	<div
 		class="w-full flex flex-col max-w-3xl mx-auto items-center justify-center min-h-28 h-full bg-secondary-d px-2 py-3 rounded-4xl"
 	>
 		<input
 			type="text"
 			bind:value={input}
-			disabled={loading}
 			placeholder="Hey there!, how can I help you?"
 			aria-label="Type your message here"
 			class="input w-full placeholder:text-lg text-base border-none focus:border-none focus:outline-none focus:ring-0 active:border-none active:outline-0 active:ring-0 bg-transparent text-white outline-0 ring-0"
-			onkeydown={(e) => e.key === 'Enter' && sendMessage()}
 		/>
 		<div class="w-full flex justify-end gap-1 items-center mr-10">
+			{#if options.length > 0}
+				<select bind:value={selectedModel}>
+					{#each options as model}
+						<option value={model.name}>{model.name}</option>
+					{/each}
+				</select>
+			{:else}
+				<p>Loading models...</p>
+			{/if}
 			<button class="rounded-full bg-tertiary-d p-3.5 cursor-pointer hover:bg-tertiary-hover">
 				<Paperclip class="w-4 h-4 text-white" />
 			</button>
 			<button
-				onclick={sendMessage}
 				disabled={loading}
+				onclick={onSubmit}
 				class={input && !loading
 					? 'rounded-full p-3.5 cursor-pointer hover:bg-tertiary-hover bg-white text-black'
 					: 'rounded-full bg-tertiary-d p-3.5 cursor-not-allowed hover:bg-tertiary-hover'}
