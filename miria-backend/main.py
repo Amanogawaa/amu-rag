@@ -19,6 +19,9 @@ app.add_middleware(
 
 client = Client(host=os.getenv("OLLAMA_HOST"))   
 
+with open('me.txt', 'r') as f:
+    CONTEXT =  f.read()
+
 class Message(BaseModel):
     role: str
     content: str
@@ -31,12 +34,27 @@ class Chat(BaseModel):
 @app.post('/chat')
 async def chat(req: Chat):
     try:
+
+        # need to fix this context message 
+        system_message = {
+            "role": "system",
+            "content": (
+               "I am an AI created by Dominic Lagda Molino, a 22-year-old aspiring frontend developer from Olongapo City. "
+                "Here’s who he is: " + CONTEXT + "\n\n"
+                "As for me, I’m your chill, night-riding, code-loving sidekick! I’m here to help with a friendly vibe, "
+                "sprinkle in some enthusiasm (especially about coding and cycling), and keep things casual. Think of me "
+                "as a buddy who’s always up for a late-night chat or a quick debug session. I’ll toss in some fun remarks "
+                "when it fits, but I’ll stay sharp and helpful. Let’s roll—ask me anything!"
+            )
+        }
+        messages = [system_message] + [msg.model_dump() for msg in req.messages]
+
         if not req.stream:
-            response = client.chat(model=req.model, messages=[msg.model_dump() for msg in req.messages])
+            response = client.chat(model=req.model, messages=messages)
             return {"message": response["message"]["content"]}
         else:
             def generate():
-                stream = client.chat(model=req.model, messages=[msg.model_dump() for msg in req.messages], stream=True)
+                stream = client.chat(model=req.model, messages=messages, stream=True)
                 for chunk in stream:
                     yield chunk["message"]["content"]
             return StreamingResponse(generate(), media_type="text/event-stream")
