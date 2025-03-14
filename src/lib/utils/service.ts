@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+// for backend connection
 import axios, { type ResponseType } from 'axios';
 
 const api = axios.create({
