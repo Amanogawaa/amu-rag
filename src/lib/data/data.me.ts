@@ -12,16 +12,10 @@ const myData: DataEntry[] = [
 		id: '1',
 		question: "Who's your creator?",
 		answer:
-			'You’re Dominic Molino, a 3rd-year Computer Science student who coded me as his AI assistant.',
+			'My creator is Dominic Molino, a 3rd-year Computer Science student who coded me as his AI assistant.',
 		category: 'personal',
 		keywords: ['creator', 'who', 'programmer', 'Computer Science', 'Dominic'],
-		variations: [
-			'who made you',
-			'who’s your creator',
-			'who built you',
-			'who’s behind you',
-			'what is my name'
-		]
+		variations: ['who made you', "who's your creator", 'who built you', "who's behind you"]
 	},
 	{
 		id: '2',
@@ -45,13 +39,13 @@ const myData: DataEntry[] = [
 		variations: [
 			'what programming language do i like',
 			'what is my preferred language',
-			'what’s my top coding language'
+			"what's my top coding language"
 		]
 	},
 	{
 		id: '4',
 		question: 'What is my favorite food?',
-		answer: 'You claim pizza’s the ultimate creation and tolerate burgers.',
+		answer: "You claim pizza's the ultimate creation and tolerate burgers.",
 		category: 'food',
 		keywords: ['food', 'favorite', 'pizza', 'burgers'],
 		variations: ['what is my favorite food', 'what do i like to eat']
@@ -68,26 +62,21 @@ const myData: DataEntry[] = [
 		id: '6',
 		question: 'What projects have i worked on?',
 		answer:
-			'You’ve built a personal website, a chatbot, some web apps, and currently, you’re coding me, your AI assistant.',
+			"You've built a personal website, a chatbot, some web apps, and currently, you're coding me, your AI assistant.",
 		category: 'projects',
 		keywords: ['projects', 'work', 'experience', 'personal website', 'chatbot', 'web applications'],
 		variations: ['what have i worked on', 'what projects have i done', 'what experience do i have']
 	}
 ];
 
-// credits to hiz and chris fo the functions and the data structure
-
 export function calculateStringSimilarity(str1: string, str2: string): number {
 	str1 = str1.toLowerCase();
 	str2 = str2.toLowerCase();
 
-	// Exact match
 	if (str1 === str2) return 1;
 
-	// One string contains the other
 	if (str1.includes(str2) || str2.includes(str1)) return 0.8;
 
-	// Calculate word overlap - optimize by using Set for faster lookups
 	const words1 = new Set(str1.split(/\s+/));
 	const words2 = str2.split(/\s+/);
 	const commonWords = words2.filter((word) => words1.has(word));
@@ -101,14 +90,13 @@ function findMatchingKeywords(query: string, keywords: string[]): number {
 	query = query.toLowerCase();
 	const queryWords = new Set(query.split(/\s+/));
 
-	// Use a more efficient approach with Set
 	let matches = 0;
 	for (const keyword of keywords) {
 		const keywordLower = keyword.toLowerCase();
 		for (const word of queryWords) {
 			if (word.includes(keywordLower) || keywordLower.includes(word)) {
 				matches++;
-				break; // Once we find a match for this keyword, move to next
+				break;
 			}
 		}
 	}
@@ -123,54 +111,44 @@ const CACHE_SIZE = 20;
 export function findRelevantEntries(query: string): DataEntry[] {
 	query = query.toLowerCase().trim();
 
-	// Check cache first
 	if (queryCache.has(query)) {
 		return queryCache.get(query)!;
 	}
 
-	// Early return for empty queries
 	if (!query) return [];
 
-	// Score each entry based on multiple factors
 	const scoredEntries = myData.map((entry) => {
 		let score = 0;
 
-		// Check exact matches with variations - exit early if found
 		for (const variation of entry.variations) {
 			const similarity = calculateStringSimilarity(query, variation);
 			if (similarity > 0.7) {
-				score += 3;
-				break; // No need to check other variations
+				score += similarity * 5;
 			}
 		}
 
-		// Check keyword matches
 		const keywordMatches = findMatchingKeywords(query, entry.keywords);
-		score += keywordMatches;
+		score += keywordMatches * 2;
 
-		// Check category match
-		if (query.includes(entry.category.toLowerCase())) score += 1;
+		if (query.includes(entry.category.toLowerCase())) score += 2;
 
-		// Check question similarity
 		const questionSimilarity = calculateStringSimilarity(query, entry.question);
-		score += questionSimilarity * 2;
+		if (questionSimilarity > 0.5) {
+			score += questionSimilarity * 3;
+		}
 
 		return { entry, score };
 	});
 
-	// Filter entries with a minimum score and sort by score
 	const relevantEntries = scoredEntries
-		.filter(({ score }) => score > 0)
+		.filter(({ score }) => score > 1.0)
 		.sort((a, b) => b.score - a.score)
 		.map(({ entry }) => entry);
 
-	// Limit to top 3 most relevant entries to avoid information overload
-	const result = relevantEntries.slice(0, 3);
+	const result = relevantEntries.slice(0, 5);
 
-	// Update cache
 	queryCache.set(query, result);
 
-	// Maintain cache size
 	if (queryCache.size > CACHE_SIZE) {
 		const firstKey = queryCache.keys().next().value;
 		queryCache.delete(firstKey!);
@@ -188,4 +166,56 @@ export function formatContext(entries: DataEntry[]): string {
 		context += `Q: ${entry.question}\nA: ${entry.answer}\n\n`;
 	});
 	return context;
+}
+
+// generate flexible answers combining the knowledge base and the confidence level
+export function generateFlexibleAnswer(query: string): { answer: string; confidence: number } {
+	const relevantEntries = findRelevantEntries(query);
+
+	if (
+		relevantEntries.length > 0 &&
+		calculateStringSimilarity(query, relevantEntries[0].question) > 0.85
+	) {
+		return { answer: relevantEntries[0].answer, confidence: 1 };
+	}
+
+	// return message if no relevant entries are found
+	if (relevantEntries.length === 0) {
+		return {
+			answer: "I don't have enough information to answer that question accurately.",
+			confidence: 0
+		};
+	}
+
+	// Group entries by category to understand context
+	const categoryGroups = new Map<string, DataEntry[]>();
+	relevantEntries.forEach((entry) => {
+		if (!categoryGroups.has(entry.category)) {
+			categoryGroups.set(entry.category, []);
+		}
+		categoryGroups.get(entry.category)?.push(entry);
+	});
+
+	// Calculate overall confidence based on relevance scores
+	const avgSimilarity =
+		relevantEntries.reduce(
+			(acc, entry) => acc + calculateStringSimilarity(query, entry.question),
+			0
+		) / relevantEntries.length;
+
+	let combinedAnswer = '';
+	const categories = Array.from(categoryGroups.keys());
+
+	if (categories.length === 1) {
+		combinedAnswer = relevantEntries[0].answer;
+	} else {
+		combinedAnswer =
+			'Based on what I know: ' +
+			relevantEntries.map((entry) => entry.answer.replace(/^You/g, 'you')).join(' Also, ');
+	}
+
+	return {
+		answer: combinedAnswer,
+		confidence: avgSimilarity
+	};
 }
